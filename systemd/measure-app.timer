@@ -1,0 +1,11 @@
+[Unit]
+Description=Run measure-app every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+Persistent=true
+Unit=measure-app.service
+
+[Install]
+WantedBy=timers.target

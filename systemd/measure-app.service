@@ -1,0 +1,10 @@
+[Unit]
+Description=Measure once and save result to SQLite
+Wants=network-online.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/measure_app
+ExecStart=/usr/bin/python3 /home/pi/measure_app/main.py run
