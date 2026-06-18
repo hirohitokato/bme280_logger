@@ -155,3 +155,73 @@ The sync flow is:
 2. Try to upsert all pending unsynced rows to Supabase.
 3. On success, store `supabase_synced_at`.
 4. On failure, keep the row locally and increment `supabase_retry_count` for the next timer run.
+
+## Web dashboard
+
+This repository now also includes a Supabase-backed dashboard app in `dashboard/`.
+It is separate from the Raspberry Pi measurement process and is intended to be deployed to Vercel from GitHub.
+
+### Dashboard features
+
+- Latest temperature, humidity, and pressure cards
+- Range switcher for `24h`, `7d`, and `30d`
+- Time-series charts for temperature, humidity, and pressure
+- Min / max / average summary for the selected range
+- Recent measurement table with `status`
+
+### Dashboard environment variables
+
+Create `dashboard/.env.local` for local development.
+
+```dotenv
+NEXT_PUBLIC_APP_NAME=BME280 Dashboard
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_TABLE=measurements
+```
+
+Notes:
+
+- The dashboard reads Supabase only on the server side.
+- Do not expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
+- Keep `measured_at` stored in UTC. The dashboard formats timestamps in the viewer's local browser time.
+
+### Local dashboard run
+
+Install dashboard dependencies:
+
+```sh
+cd dashboard
+npm install
+```
+
+Start the development server:
+
+```sh
+cd dashboard
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+### Dashboard tests and build
+
+```sh
+cd dashboard
+npm test
+npm run build
+```
+
+### Deploy to Vercel via GitHub
+
+1. Push this repository to GitHub.
+2. In Vercel, import the GitHub repository.
+3. Set the Vercel project Root Directory to `dashboard`.
+4. Add the dashboard environment variables in Vercel:
+   - `NEXT_PUBLIC_APP_NAME`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_TABLE`
+5. Deploy to Preview / Production.
+
+The dashboard does not require changes to the Raspberry Pi timer, SQLite flow, or existing Supabase sync logic.
