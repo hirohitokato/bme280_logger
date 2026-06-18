@@ -65,7 +65,7 @@ export function DashboardView({ appName, range, payload }: DashboardViewProps) {
           <p className="eyebrow">Supabase monitor</p>
           <h1>{appName}</h1>
           <p className="hero-copy">
-            BME280 から蓄積された温度・湿度・気圧を、範囲ごとにざっと把握できるダッシュボードです。
+            This dashboard provides a quick overview of temperature, humidity, and atmospheric pressure data collected from the BME280, broken down by range.
           </p>
         </div>
         <RangeTabs current={range} />
