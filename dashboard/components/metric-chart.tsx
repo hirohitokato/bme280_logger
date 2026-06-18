@@ -1,5 +1,5 @@
 import React from "react";
-import { MeasurementRecord } from "@/lib/types";
+import { MeasurementRecord } from "../lib/types";
 
 type MetricChartProps = {
   title: string;

@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 
-import { DashboardRange } from "@/lib/types";
+import { DashboardRange } from "../lib/types";
 
 const RANGES: DashboardRange[] = ["24h", "7d", "30d"];
 

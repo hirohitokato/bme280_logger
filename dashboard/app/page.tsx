@@ -1,6 +1,6 @@
-import { DashboardError, DashboardView } from "@/components/dashboard-view";
-import { parseDashboardRange } from "@/lib/dashboard";
-import { getDashboardPayload } from "@/lib/supabase";
+import { DashboardError, DashboardView } from "../components/dashboard-view";
+import { parseDashboardRange } from "../lib/dashboard";
+import { getDashboardPayload } from "../lib/supabase";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;

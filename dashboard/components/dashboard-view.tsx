@@ -1,9 +1,9 @@
 import React from "react";
-import { LocalTime } from "@/components/local-time";
-import { MetricChart } from "@/components/metric-chart";
-import { RangeTabs } from "@/components/range-tabs";
-import { formatMetricValue } from "@/lib/dashboard";
-import { DashboardPayload, DashboardRange } from "@/lib/types";
+import { LocalTime } from "./local-time";
+import { MetricChart } from "./metric-chart";
+import { RangeTabs } from "./range-tabs";
+import { formatMetricValue } from "../lib/dashboard";
+import { DashboardPayload, DashboardRange } from "../lib/types";
 
 type DashboardViewProps = {
   appName: string;

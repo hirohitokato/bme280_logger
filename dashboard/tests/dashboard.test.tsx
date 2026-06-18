@@ -2,14 +2,14 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, test } from "vitest";
 
-import { DashboardView } from "@/components/dashboard-view";
+import { DashboardView } from "../components/dashboard-view";
 import {
   buildDashboardPayload,
   computeMetricSummary,
   getRangeStartIso,
   parseDashboardRange,
-} from "@/lib/dashboard";
-import { MeasurementRecord } from "@/lib/types";
+} from "../lib/dashboard";
+import { MeasurementRecord } from "../lib/types";
 
 const records: MeasurementRecord[] = [
   {
