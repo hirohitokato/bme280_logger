@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from app.models import MeasurementResult
+from app.models import MeasurementResult, StoredMeasurement
 
 
 class MeasurementRepository:
@@ -39,9 +39,23 @@ class MeasurementRepository:
             "status",
             "raw_text",
             "created_at",
+            "supabase_synced_at",
+            "supabase_sync_error",
+            "supabase_retry_count",
         }
 
-        if columns and not expected.issubset(columns):
+        legacy_columns = {
+            "id",
+            "measured_at",
+            "temperature_c",
+            "pressure_hpa",
+            "humidity_percent",
+            "status",
+            "raw_text",
+            "created_at",
+        }
+
+        if columns and not (expected.issuperset(columns) and legacy_columns.issubset(columns)):
             conn.execute("ALTER TABLE measurements RENAME TO measurements_legacy")
             columns = set()
 
@@ -56,9 +70,22 @@ class MeasurementRepository:
                     humidity_percent REAL NOT NULL,
                     status TEXT NOT NULL,
                     raw_text TEXT,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    supabase_synced_at TEXT,
+                    supabase_sync_error TEXT,
+                    supabase_retry_count INTEGER NOT NULL DEFAULT 0
                 )
                 """
+            )
+            columns = self._get_table_columns(conn, "measurements")
+
+        if "supabase_synced_at" not in columns:
+            conn.execute("ALTER TABLE measurements ADD COLUMN supabase_synced_at TEXT")
+        if "supabase_sync_error" not in columns:
+            conn.execute("ALTER TABLE measurements ADD COLUMN supabase_sync_error TEXT")
+        if "supabase_retry_count" not in columns:
+            conn.execute(
+                "ALTER TABLE measurements ADD COLUMN supabase_retry_count INTEGER NOT NULL DEFAULT 0"
             )
 
     @staticmethod
@@ -92,3 +119,54 @@ class MeasurementRepository:
                 ),
             )
             return int(cursor.lastrowid)
+
+    def list_unsynced(self, limit: int = 100) -> list[StoredMeasurement]:
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    measured_at,
+                    temperature_c,
+                    pressure_hpa,
+                    humidity_percent,
+                    status,
+                    raw_text,
+                    created_at,
+                    supabase_synced_at,
+                    supabase_sync_error,
+                    supabase_retry_count
+                FROM measurements
+                WHERE supabase_synced_at IS NULL
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [StoredMeasurement(*row) for row in rows]
+
+    def mark_synced(self, measurement_id: int, synced_at: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE measurements
+                SET
+                    supabase_synced_at = ?,
+                    supabase_sync_error = NULL
+                WHERE id = ?
+                """,
+                (synced_at, measurement_id),
+            )
+
+    def mark_sync_failed(self, measurement_id: int, error_message: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE measurements
+                SET
+                    supabase_sync_error = ?,
+                    supabase_retry_count = supabase_retry_count + 1
+                WHERE id = ?
+                """,
+                (error_message[:1000], measurement_id),
+            )

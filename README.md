@@ -1,6 +1,6 @@
 # measure_app
 
-Raspberry Pi 5 with BME280 on I2C address `0x76`. The app measures temperature, pressure, and humidity once, then stores the result with timestamp into SQLite3.
+Raspberry Pi 5 with BME280 on I2C address `0x76`. The app measures temperature, pressure, and humidity once, stores the result with timestamp into SQLite3, and can retry-safe sync the same row to Supabase.
 
 ## Layout
 
@@ -25,7 +25,8 @@ measure_app/
 ## Responsibilities
 
 - `app/measurement.py`: BME280 measurement only. It does not access SQLite.
-- `app/repository.py`: SQLite initialization and INSERT only. It does not access I2C.
+- `app/repository.py`: SQLite initialization, INSERT, and Supabase sync state management.
+- `app/supabase.py`: Supabase REST upsert only.
 - `main.py`: Application orchestration.
 - `systemd/`: Runs `main.py run` every 10 minutes.
 
@@ -42,6 +43,7 @@ Then install packages.
 ```sh
 sudo apt update
 sudo apt install -y python3-smbus2 i2c-tools sqlite3
+python3 -m pip install -r requirements.txt
 ```
 
 Check the sensor. The expected address is usually `76` for this project.
@@ -59,6 +61,22 @@ cd /home/pi/measure_app
 /usr/bin/python3 main.py run
 ```
 
+If you use Supabase sync, create `.env` first.
+
+```sh
+cp .env.example .env
+```
+
+Example:
+
+```dotenv
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-service-role-key
+SUPABASE_TABLE=measurements
+SUPABASE_SYNC_ENABLED=true
+MEASURE_APP_DB_PATH=/home/pi/measure_app/data/measurements.sqlite3
+```
+
 Show latest rows:
 
 ```sh
@@ -69,7 +87,7 @@ Direct SQLite check:
 
 ```sh
 sqlite3 /home/pi/measure_app/data/measurements.sqlite3 \
-"SELECT id, measured_at, temperature_c, pressure_hpa, humidity_percent, status, created_at FROM measurements ORDER BY id DESC LIMIT 10;"
+"SELECT id, measured_at, temperature_c, pressure_hpa, humidity_percent, status, supabase_synced_at, supabase_retry_count FROM measurements ORDER BY id DESC LIMIT 10;"
 ```
 
 ## Enable 10 minute interval execution
@@ -86,6 +104,8 @@ systemctl status measure-app.timer
 systemctl list-timers --all | grep measure-app
 journalctl -u measure-app.service -n 50 --no-pager
 ```
+
+The service also loads `/home/pi/measure_app/.env` automatically if it exists.
 
 ## Disable timer
 
@@ -107,8 +127,22 @@ CREATE TABLE measurements (
     humidity_percent REAL NOT NULL,
     status TEXT NOT NULL,
     raw_text TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    supabase_synced_at TEXT,
+    supabase_sync_error TEXT,
+    supabase_retry_count INTEGER NOT NULL DEFAULT 0
 );
 ```
 
 If an older `measurements` table from the single-value sample app exists, it is renamed to `measurements_legacy` and a new BME280-compatible table is created.
+
+## Supabase table requirements
+
+Create a `measurements` table in Supabase that accepts `id`, `measured_at`, `temperature_c`, `pressure_hpa`, `humidity_percent`, `status`, `raw_text`, and `created_at`. For retry-safe upsert, keep `id` as a primary key or unique key on the Supabase side as well.
+
+The sync flow is:
+
+1. Save the row to local SQLite.
+2. Try to upsert all pending unsynced rows to Supabase.
+3. On success, store `supabase_synced_at`.
+4. On failure, keep the row locally and increment `supabase_retry_count` for the next timer run.

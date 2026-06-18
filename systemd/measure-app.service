@@ -7,4 +7,5 @@ After=network-online.target time-sync.target
 Type=oneshot
 User=pi
 WorkingDirectory=/home/pi/measure_app
+EnvironmentFile=-/home/pi/measure_app/.env
 ExecStart=/usr/bin/python3 /home/pi/measure_app/main.py run
