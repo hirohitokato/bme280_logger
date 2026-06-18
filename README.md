@@ -1,51 +1,115 @@
-# measure_app
+# BME280 Logger
 
-Raspberry Pi 5 with BME280 on I2C address `0x76`. The app measures temperature, pressure, and humidity once, stores the result with timestamp into SQLite3, and can retry-safe sync the same row to Supabase.
+![Project screenshot](https://github.com/hirohitokato/myAssets/blob/main/bme280_logger/screenshot.png?raw=true)
 
-## Layout
+BME280 Logger is a small end-to-end environment monitoring stack built around a Raspberry Pi and a BME280 sensor. It measures temperature, humidity, and pressure on a schedule, stores readings locally in SQLite, syncs them to Supabase, and visualizes them in a Next.js dashboard deployed on Vercel.
+
+## Features
+
+- Scheduled BME280 measurements on Raspberry Pi
+- Local-first persistence with SQLite
+- Retry-safe sync from Raspberry Pi to Supabase
+- Web dashboard for browsing historical sensor data
+- Range-based charts for `24h`, `7d`, and `30d`
+- Latest reading cards, summary stats, and recent measurement table
+
+## How It Works
+
+The project has two deployable parts:
+
+1. Raspberry Pi collector
+   - Reads data from a BME280 sensor over I2C
+   - Saves readings to a local SQLite database
+   - Retries failed Supabase syncs automatically
+2. Web dashboard
+   - Runs as a Next.js app
+   - Reads measurement data from Supabase on the server side
+   - Renders charts and summaries in the browser
+
+End-to-end flow:
 
 ```text
-measure_app/
-├── app/
-│   ├── __init__.py
+BME280 sensor
+  -> Raspberry Pi collector
+  -> SQLite
+  -> Supabase
+  -> Vercel dashboard
+  -> Browser
+```
+
+## What You Get After Deployment
+
+When both parts are deployed, the full system provides:
+
+- Continuous environmental logging from a Raspberry Pi
+- Local buffering when the network is unavailable
+- Centralized historical storage in Supabase
+- A browser-based dashboard with:
+  - latest temperature, humidity, and pressure
+  - time-series charts
+  - min / max / average summaries
+  - recent measurement history
+
+## Repository Layout
+
+```text
+bme280_logger/
+├── app/                    # Python collector modules
 │   ├── config.py
-│   ├── measurement.py
+│   ├── measurement.py      # BME280 access
 │   ├── models.py
-│   └── repository.py
-├── main.py
-├── requirements.txt
-├── systemd/
-│   ├── measure-app.service
-│   └── measure-app.timer
-├── install.sh
+│   ├── repository.py       # SQLite persistence and sync state
+│   └── supabase.py         # Supabase REST upsert
+├── dashboard/              # Next.js dashboard for Vercel
+│   ├── app/                # App Router entrypoints
+│   ├── components/         # UI components
+│   ├── lib/                # types, aggregation, Supabase reads
+│   ├── tests/
+│   ├── package.json
+│   └── vercel.json
+├── systemd/                # service and timer units
+├── tests/                  # Python tests
+├── main.py                 # collector entrypoint
+├── install.sh              # systemd install helper
 ├── uninstall.sh
+├── requirements.txt
+├── LICENSE.txt
 └── README.md
 ```
 
-## Responsibilities
+## Prerequisites
 
-- `app/measurement.py`: BME280 measurement only. It does not access SQLite.
-- `app/repository.py`: SQLite initialization, INSERT, and Supabase sync state management.
-- `app/supabase.py`: Supabase REST upsert only.
-- `main.py`: Application orchestration.
-- `systemd/`: Runs `main.py run` every 10 minutes.
+### Raspberry Pi collector
 
-## Raspberry Pi prerequisites
+- Raspberry Pi 5
+- BME280 sensor
+- I2C enabled
+- Python 3
 
-Enable I2C first.
+### Cloud services
+
+- A Supabase project for measurement storage
+- A Vercel project for the dashboard
+- A GitHub repository connected to Vercel
+
+## Quick Start
+
+### Run the collector locally
+
+Enable I2C:
 
 ```sh
 sudo raspi-config
 ```
 
-Then install packages.
+Install system packages:
 
 ```sh
 sudo apt update
 sudo apt install -y python3-venv python3-smbus2 i2c-tools sqlite3
 ```
 
-Create the virtual environment as `.venv` and install Python dependencies there.
+Create a virtual environment and install dependencies:
 
 ```sh
 cd /home/pi/measure_app
@@ -53,22 +117,55 @@ python -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 ```
 
-Check the sensor. The expected address is usually `76` for this project.
+Verify that the sensor is visible. This project expects the BME280 at `0x76`.
 
 ```sh
 i2cdetect -y 1
 ```
 
-## Manual run
-
-Place this directory at `/home/pi/measure_app`.
+Take a single reading:
 
 ```sh
 cd /home/pi/measure_app
 python main.py run
 ```
 
-If you use Supabase sync, create `.env` first.
+Show recent locally stored readings:
+
+```sh
+python main.py latest --limit 10
+```
+
+## Deploy Your Own Copy
+
+### 1. Create a Supabase project
+
+Create a new Supabase project and add a `measurements` table.
+
+Minimum required schema:
+
+```sql
+CREATE TABLE measurements (
+    id INTEGER PRIMARY KEY,
+    measured_at TEXT NOT NULL,
+    temperature_c REAL NOT NULL,
+    pressure_hpa REAL NOT NULL,
+    humidity_percent REAL NOT NULL,
+    status TEXT NOT NULL,
+    raw_text TEXT,
+    created_at TEXT NOT NULL
+);
+```
+
+Notes:
+
+- The Raspberry Pi collector uses `id` for retry-safe upserts.
+- The dashboard reads from Supabase on the server side.
+- Do not expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
+
+### 2. Configure the Raspberry Pi collector
+
+Create a root `.env` file:
 
 ```sh
 cp .env.example .env
@@ -82,29 +179,15 @@ SUPABASE_KEY=your-service-role-key
 SUPABASE_TABLE=measurements
 SUPABASE_SYNC_ENABLED=true
 MEASURE_APP_DB_PATH=/home/pi/measure_app/data/measurements.sqlite3
+MEASURE_APP_LOG_PATH=/home/pi/measure_app/logs/measure.log
 ```
 
-Show latest rows:
-
-```sh
-python main.py latest --limit 10
-```
-
-Direct SQLite check:
-
-```sh
-sqlite3 /home/pi/measure_app/data/measurements.sqlite3 \
-"SELECT id, measured_at, temperature_c, pressure_hpa, humidity_percent, status, supabase_synced_at, supabase_retry_count FROM measurements ORDER BY id DESC LIMIT 10;"
-```
-
-## Enable 10 minute interval execution
+Enable scheduled execution:
 
 ```sh
 cd /home/pi/measure_app
 sudo ./install.sh
 ```
-
-`measure-app.service` runs with `/home/pi/measure_app/.venv/bin/python`, so `.venv` must exist before installation.
 
 Check status:
 
@@ -114,18 +197,50 @@ systemctl list-timers --all | grep measure-app
 journalctl -u measure-app.service -n 50 --no-pager
 ```
 
-The service also loads `/home/pi/measure_app/.env` automatically if it exists.
+### 3. Deploy the dashboard to Vercel
 
-## Disable timer
+Push this repository to GitHub, then import it into Vercel.
 
-```sh
-cd /home/pi/measure_app
-sudo ./uninstall.sh
+Use the following Vercel settings:
+
+- Root Directory: `dashboard`
+- Framework Preset: `Next.js`
+- Output Directory: leave empty
+
+If `public` is set as the Output Directory from a previous static-site configuration, remove it.
+
+Set these environment variables in Vercel:
+
+```dotenv
+NEXT_PUBLIC_APP_NAME=BME280 Dashboard
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_TABLE=measurements
 ```
 
-The app directory and SQLite database are not removed.
+This repository includes [dashboard/vercel.json](/Users/a3140236/Desktop/bme280_logger/dashboard/vercel.json) so Vercel treats the dashboard as a Next.js app.
 
-## Database schema
+### 4. Run the dashboard locally
+
+```sh
+cd dashboard
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+Run tests and a production build:
+
+```sh
+cd dashboard
+npm test
+npm run build
+```
+
+## Local Database Schema
+
+The Raspberry Pi collector stores readings locally in SQLite using this schema:
 
 ```sql
 CREATE TABLE measurements (
@@ -143,87 +258,20 @@ CREATE TABLE measurements (
 );
 ```
 
-If an older `measurements` table from the single-value sample app exists, it is renamed to `measurements_legacy` and a new BME280-compatible table is created.
+Sync behavior:
 
-## Supabase table requirements
+1. Save every reading to SQLite first.
+2. Try to upsert unsynced rows to Supabase.
+3. Mark successful rows with `supabase_synced_at`.
+4. Keep failed rows locally and increment `supabase_retry_count`.
 
-Create a `measurements` table in Supabase that accepts `id`, `measured_at`, `temperature_c`, `pressure_hpa`, `humidity_percent`, `status`, `raw_text`, and `created_at`. For retry-safe upsert, keep `id` as a primary key or unique key on the Supabase side as well.
+## Development Notes
 
-The sync flow is:
+- The Python collector keeps measurement, persistence, and cloud sync separated.
+- The dashboard uses Next.js App Router.
+- Supabase reads happen on the server side only.
+- Timestamps are stored in UTC and formatted in the browser's local time zone.
 
-1. Save the row to local SQLite.
-2. Try to upsert all pending unsynced rows to Supabase.
-3. On success, store `supabase_synced_at`.
-4. On failure, keep the row locally and increment `supabase_retry_count` for the next timer run.
+## License
 
-## Web dashboard
-
-This repository now also includes a Supabase-backed dashboard app in `dashboard/`.
-It is separate from the Raspberry Pi measurement process and is intended to be deployed to Vercel from GitHub.
-
-### Dashboard features
-
-- Latest temperature, humidity, and pressure cards
-- Range switcher for `24h`, `7d`, and `30d`
-- Time-series charts for temperature, humidity, and pressure
-- Min / max / average summary for the selected range
-- Recent measurement table with `status`
-
-### Dashboard environment variables
-
-Create `dashboard/.env.local` for local development.
-
-```dotenv
-NEXT_PUBLIC_APP_NAME=BME280 Dashboard
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_TABLE=measurements
-```
-
-Notes:
-
-- The dashboard reads Supabase only on the server side.
-- Do not expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
-- Keep `measured_at` stored in UTC. The dashboard formats timestamps in the viewer's local browser time.
-
-### Local dashboard run
-
-Install dashboard dependencies:
-
-```sh
-cd dashboard
-npm install
-```
-
-Start the development server:
-
-```sh
-cd dashboard
-npm run dev
-```
-
-Then open `http://localhost:3000`.
-
-### Dashboard tests and build
-
-```sh
-cd dashboard
-npm test
-npm run build
-```
-
-### Deploy to Vercel via GitHub
-
-1. Push this repository to GitHub.
-2. In Vercel, import the GitHub repository.
-3. Set the Vercel project Root Directory to `dashboard`.
-4. Make sure the Framework Preset is `Next.js`.
-5. Leave Output Directory empty. If `public` is set from a previous static-site configuration, remove it.
-6. Add the dashboard environment variables in Vercel:
-   - `NEXT_PUBLIC_APP_NAME`
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SUPABASE_TABLE`
-7. Deploy to Preview / Production.
-
-The dashboard does not require changes to the Raspberry Pi timer, SQLite flow, or existing Supabase sync logic.
+This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).
