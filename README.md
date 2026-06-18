@@ -217,11 +217,13 @@ npm run build
 1. Push this repository to GitHub.
 2. In Vercel, import the GitHub repository.
 3. Set the Vercel project Root Directory to `dashboard`.
-4. Add the dashboard environment variables in Vercel:
+4. Make sure the Framework Preset is `Next.js`.
+5. Leave Output Directory empty. If `public` is set from a previous static-site configuration, remove it.
+6. Add the dashboard environment variables in Vercel:
    - `NEXT_PUBLIC_APP_NAME`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_TABLE`
-5. Deploy to Preview / Production.
+7. Deploy to Preview / Production.
 
 The dashboard does not require changes to the Raspberry Pi timer, SQLite flow, or existing Supabase sync logic.
