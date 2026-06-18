@@ -22,7 +22,7 @@ if [ ! -x "$VENV_PYTHON" ]; then
   echo "Virtual environment not found: $VENV_PYTHON" >&2
   echo "Create it first with:" >&2
   echo "  cd $APP_DIR" >&2
-  echo "  python3 -m venv .venv" >&2
+  echo "  python -m venv .venv" >&2
   echo "  ./.venv/bin/pip install -r requirements.txt" >&2
   exit 1
 fi
