@@ -2,6 +2,8 @@
 set -eu
 
 APP_DIR="/home/pi/measure_app"
+VENV_DIR="$APP_DIR/.venv"
+VENV_PYTHON="$VENV_DIR/bin/python"
 SERVICE_SRC="$APP_DIR/systemd/measure-app.service"
 TIMER_SRC="$APP_DIR/systemd/measure-app.timer"
 
@@ -13,6 +15,15 @@ fi
 if [ ! -d "$APP_DIR" ]; then
   echo "Expected app directory not found: $APP_DIR" >&2
   echo "Copy this project to /home/pi/measure_app first." >&2
+  exit 1
+fi
+
+if [ ! -x "$VENV_PYTHON" ]; then
+  echo "Virtual environment not found: $VENV_PYTHON" >&2
+  echo "Create it first with:" >&2
+  echo "  cd $APP_DIR" >&2
+  echo "  python3 -m venv .venv" >&2
+  echo "  ./.venv/bin/pip install -r requirements.txt" >&2
   exit 1
 fi
 

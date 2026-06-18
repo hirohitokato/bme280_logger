@@ -42,8 +42,15 @@ Then install packages.
 
 ```sh
 sudo apt update
-sudo apt install -y python3-smbus2 i2c-tools sqlite3
-python3 -m pip install -r requirements.txt
+sudo apt install -y python3-venv python3-smbus2 i2c-tools sqlite3
+```
+
+Create the virtual environment as `.venv` and install Python dependencies there.
+
+```sh
+cd /home/pi/measure_app
+python -m venv .venv
+./.venv/bin/pip install -r requirements.txt
 ```
 
 Check the sensor. The expected address is usually `76` for this project.
@@ -58,7 +65,7 @@ Place this directory at `/home/pi/measure_app`.
 
 ```sh
 cd /home/pi/measure_app
-/usr/bin/python3 main.py run
+python main.py run
 ```
 
 If you use Supabase sync, create `.env` first.
@@ -80,7 +87,7 @@ MEASURE_APP_DB_PATH=/home/pi/measure_app/data/measurements.sqlite3
 Show latest rows:
 
 ```sh
-/usr/bin/python3 main.py latest --limit 10
+python main.py latest --limit 10
 ```
 
 Direct SQLite check:
@@ -96,6 +103,8 @@ sqlite3 /home/pi/measure_app/data/measurements.sqlite3 \
 cd /home/pi/measure_app
 sudo ./install.sh
 ```
+
+`measure-app.service` runs with `/home/pi/measure_app/.venv/bin/python`, so `.venv` must exist before installation.
 
 Check status:
 
