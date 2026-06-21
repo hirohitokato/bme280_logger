@@ -213,6 +213,45 @@ a {
   display: block;
 }
 
+.recharts-shell,
+.boxplot-shell {
+  width: 100%;
+  min-height: 260px;
+}
+
+.boxplot-shell {
+  position: relative;
+}
+
+.chart-tooltip {
+  display: grid;
+  gap: 4px;
+  min-width: 124px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(4, 16, 24, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+}
+
+.chart-tooltip span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.boxplot-tooltip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  transform: translate(14px, -50%);
+}
+
+.chart-axis-label {
+  fill: rgba(243, 248, 251, 0.68);
+  font-size: 12px;
+}
+
 .empty-chart,
 .empty-state {
   color: var(--muted);

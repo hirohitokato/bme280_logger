@@ -4,12 +4,23 @@ import { describe, expect, test } from "vitest";
 
 import { DashboardView } from "../components/dashboard-view";
 import {
+  buildBoxPlotBuckets,
   buildDashboardPayload,
+  buildTimeSeriesPoints,
   computeMetricSummary,
   getRangeStartIso,
   parseDashboardRange,
+  percentile,
 } from "../lib/dashboard";
 import { MeasurementRecord } from "../lib/types";
+
+if (typeof window !== "undefined" && !window.ResizeObserver) {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
 
 const records: MeasurementRecord[] = [
   {
@@ -65,8 +76,56 @@ describe("dashboard helpers", () => {
 
     expect(payload.latest?.id).toBe(2);
     expect(payload.series.map((item) => item.id)).toEqual([1, 2]);
+    expect(payload.charts.temperature_c.map((item) => item.value)).toEqual([24.5, 25.5]);
     expect(payload.recent.map((item) => item.id)).toEqual([2, 1]);
     expect(payload.summary.temperature_c.avg).toBe(25);
+  });
+
+  test("builds time-series points with real timestamps", () => {
+    const points = buildTimeSeriesPoints([records[1], records[0]], "temperature_c");
+    expect(points.map((point) => point.timestamp)).toEqual([
+      new Date("2026-06-18T00:00:00.000Z").getTime(),
+      new Date("2026-06-18T01:00:00.000Z").getTime(),
+    ]);
+  });
+
+  test("computes percentiles for odd, even, single, and empty samples", () => {
+    expect(percentile([1, 3, 5], 0.5)).toBe(3);
+    expect(percentile([1, 3, 5, 7], 0.5)).toBe(4);
+    expect(percentile([9], 0.25)).toBe(9);
+    expect(percentile([], 0.5)).toBeNull();
+  });
+
+  test("builds daily box-plot buckets", () => {
+    const buckets = buildBoxPlotBuckets(
+      [
+        records[0],
+        records[1],
+        {
+          ...records[1],
+          id: 3,
+          measured_at: "2026-06-19T01:00:00.000Z",
+          temperature_c: 28.5,
+        },
+      ],
+      "temperature_c",
+    );
+
+    expect(buckets).toHaveLength(2);
+    expect(buckets[0]).toMatchObject({
+      bucketStart: "2026-06-18",
+      min: 24.5,
+      median: 25,
+      max: 25.5,
+      count: 2,
+    });
+    expect(buckets[1]).toMatchObject({
+      bucketStart: "2026-06-19",
+      min: 28.5,
+      median: 28.5,
+      max: 28.5,
+      count: 1,
+    });
   });
 });
 

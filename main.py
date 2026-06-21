@@ -16,7 +16,7 @@ from app.config import (
     SUPABASE_TABLE,
     SUPABASE_URL,
 )
-from app.measurement import measure
+from app.measurement import measure_average
 from app.repository import MeasurementRepository
 from app.supabase import SupabaseClient, SupabaseSyncError, utc_now_isoformat
 
@@ -48,7 +48,7 @@ def run_once() -> int:
     repository = MeasurementRepository(Path(DB_PATH))
     repository.initialize()
 
-    result = measure()
+    result = measure_average()
     row_id = repository.save(result)
     sync_summary = sync_pending_measurements(repository, logger)
 

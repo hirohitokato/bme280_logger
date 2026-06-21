@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import time
+from typing import Callable
 
 from app.models import MeasurementResult
 
@@ -216,24 +218,64 @@ class BME280Reader:
         return var_h
 
 
-def measure() -> MeasurementResult:
-    """Measure once and return a domain object for persistence."""
-
-    measured_at = datetime.now(timezone.utc).astimezone()
-
+def read_single_measurement() -> tuple[datetime, float, float, float]:
+    """Read the sensor once and return timestamped raw values."""
     try:
         with BME280Reader(bus_number=1, i2c_address=0x76) as reader:
             temperature_c, pressure_hpa, humidity_percent = reader.read()
-
-        return MeasurementResult(
-            measured_at=measured_at,
-            temperature_c=round(temperature_c, 2),
-            pressure_hpa=round(pressure_hpa, 2),
-            humidity_percent=round(humidity_percent, 2),
-            status="ok",
-            raw_text=None,
-        )
+        measured_at = datetime.now(timezone.utc).astimezone()
+        return measured_at, temperature_c, pressure_hpa, humidity_percent
     except Exception as exc:
         if isinstance(exc, MeasurementError):
             raise
         raise MeasurementError(f"BME280 measurement failed: {exc}") from exc
+
+
+def measure_once() -> MeasurementResult:
+    """Measure once and return a domain object for persistence."""
+
+    measured_at, temperature_c, pressure_hpa, humidity_percent = read_single_measurement()
+    return MeasurementResult(
+        measured_at=measured_at,
+        temperature_c=round(temperature_c, 2),
+        pressure_hpa=round(pressure_hpa, 2),
+        humidity_percent=round(humidity_percent, 2),
+        status="ok",
+        raw_text=None,
+    )
+
+
+def measure_average(
+    *,
+    sample_count: int = 10,
+    interval_seconds: float = 5.0,
+    read_func: Callable[[], tuple[datetime, float, float, float]] | None = None,
+    sleep_func: Callable[[float], None] | None = None,
+) -> MeasurementResult:
+    """Measure multiple times and return one averaged record."""
+
+    if sample_count <= 0:
+        raise ValueError("sample_count must be greater than zero")
+
+    reader = read_func or read_single_measurement
+    sleeper = sleep_func or time.sleep
+    samples: list[tuple[datetime, float, float, float]] = []
+
+    for index in range(sample_count):
+        samples.append(reader())
+        if index < sample_count - 1:
+            sleeper(interval_seconds)
+
+    measured_at = samples[-1][0]
+    temperature_c = sum(sample[1] for sample in samples) / sample_count
+    pressure_hpa = sum(sample[2] for sample in samples) / sample_count
+    humidity_percent = sum(sample[3] for sample in samples) / sample_count
+
+    return MeasurementResult(
+        measured_at=measured_at,
+        temperature_c=round(temperature_c, 2),
+        pressure_hpa=round(pressure_hpa, 2),
+        humidity_percent=round(humidity_percent, 2),
+        status="ok",
+        raw_text=None,
+    )

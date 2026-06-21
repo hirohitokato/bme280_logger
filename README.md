@@ -7,10 +7,11 @@ BME280 Logger is a small end-to-end environment monitoring stack built around a 
 ## Features
 
 - Scheduled BME280 measurements on Raspberry Pi
+- Averaged 30-minute logging using `5 seconds x 10 samples`
 - Local-first persistence with SQLite
 - Retry-safe sync from Raspberry Pi to Supabase
 - Web dashboard for browsing historical sensor data
-- Range-based charts for `24h`, `7d`, and `30d`
+- Real-time-scaled `24h` charts plus daily box plots for `7d` and `30d`
 - Latest reading cards, summary stats, and recent measurement table
 
 ## How It Works
@@ -19,6 +20,7 @@ The project has two deployable parts:
 
 1. Raspberry Pi collector
    - Reads data from a BME280 sensor over I2C
+   - Takes 10 samples at 5-second intervals and stores their average every 30 minutes
    - Saves readings to a local SQLite database
    - Retries failed Supabase syncs automatically
 2. Web dashboard
@@ -46,7 +48,8 @@ When both parts are deployed, the full system provides:
 - Centralized historical storage in Supabase
 - A browser-based dashboard with:
   - latest temperature, humidity, and pressure
-  - time-series charts
+  - 24-hour time-series charts with a true time axis
+  - 7-day and 30-day daily box plots for value ranges
   - min / max / average summaries
   - recent measurement history
 
@@ -130,6 +133,8 @@ cd /home/pi/measure_app
 python main.py run
 ```
 
+This command performs 10 measurements at 5-second intervals and saves one averaged record.
+
 Show recent locally stored readings:
 
 ```sh
@@ -196,6 +201,8 @@ systemctl status measure-app.timer
 systemctl list-timers --all | grep measure-app
 journalctl -u measure-app.service -n 50 --no-pager
 ```
+
+The installed timer runs on the wall clock at every `:00` and `:30`.
 
 ### 3. Deploy the dashboard to Vercel
 

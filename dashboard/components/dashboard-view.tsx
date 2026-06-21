@@ -126,22 +126,28 @@ export function DashboardView({ appName, range, payload }: DashboardViewProps) {
           title="Temperature"
           unit="°C"
           color="#ff7a18"
+          range={range}
+          metric="temperature_c"
           records={series}
-          accessor={(record) => record.temperature_c}
+          points={payload.charts.temperature_c}
         />
         <MetricChart
           title="Humidity"
           unit="%"
           color="#37b8ff"
+          range={range}
+          metric="humidity_percent"
           records={series}
-          accessor={(record) => record.humidity_percent}
+          points={payload.charts.humidity_percent}
         />
         <MetricChart
           title="Pressure"
           unit="hPa"
           color="#9ce25b"
+          range={range}
+          metric="pressure_hpa"
           records={series}
-          accessor={(record) => record.pressure_hpa}
+          points={payload.charts.pressure_hpa}
         />
       </section>
 

@@ -1,9 +1,9 @@
 [Unit]
-Description=Run measure-app every 10 minutes
+Description=Run measure-app every 30 minutes on the hour and half hour
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=10min
+OnCalendar=*:0/30
 Persistent=true
 Unit=measure-app.service
 

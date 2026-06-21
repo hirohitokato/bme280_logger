@@ -40,6 +40,25 @@ async function fetchMeasurements(query: string): Promise<MeasurementRecord[]> {
   return (await response.json()) as MeasurementRecord[];
 }
 
+async function fetchMeasurementsInRange(startIso: string): Promise<MeasurementRecord[]> {
+  const pageSize = 1000;
+  const baseSelect =
+    "select=id,measured_at,temperature_c,pressure_hpa,humidity_percent,status,raw_text,created_at";
+  const rows: MeasurementRecord[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await fetchMeasurements(
+      `${baseSelect}&measured_at=gte.${encodeURIComponent(startIso)}&order=measured_at.desc&limit=${pageSize}&offset=${offset}`,
+    );
+    rows.push(...page);
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
 export async function getDashboardPayload(range: DashboardRange): Promise<DashboardPayload> {
   const startIso = getRangeStartIso(range);
   const baseSelect =
@@ -47,9 +66,7 @@ export async function getDashboardPayload(range: DashboardRange): Promise<Dashbo
 
   const [latestRows, rangeRows] = await Promise.all([
     fetchMeasurements(`${baseSelect}&order=measured_at.desc&limit=1`),
-    fetchMeasurements(
-      `${baseSelect}&measured_at=gte.${encodeURIComponent(startIso)}&order=measured_at.desc&limit=1000`,
-    ),
+    fetchMeasurementsInRange(startIso),
   ]);
 
   return buildDashboardPayload(latestRows[0] ?? null, rangeRows);
