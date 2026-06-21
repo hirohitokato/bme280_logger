@@ -1,15 +1,23 @@
 export type DashboardRange = "24h" | "7d" | "30d";
 export type MetricKey = "temperature_c" | "humidity_percent" | "pressure_hpa";
 
-export type MeasurementRecord = {
-  id: number;
+export type LatestMeasurement = {
   measured_at: string;
   temperature_c: number;
   pressure_hpa: number;
   humidity_percent: number;
+};
+
+export type MeasurementRecord = LatestMeasurement & {
+  id: number;
   status: string;
   raw_text: string | null;
   created_at: string;
+};
+
+export type RecentMeasurementRecord = LatestMeasurement & {
+  id: number;
+  status: string;
 };
 
 export type MetricSummary = {
@@ -32,16 +40,31 @@ export type BoxPlotBucket = {
   q3: number;
   max: number;
   count: number;
+  avg?: number;
+};
+
+export type DailyMetricBucketRow = {
+  bucket_date: string;
+  metric: MetricKey;
+  min_value: number;
+  q1_value: number;
+  median_value: number;
+  q3_value: number;
+  max_value: number;
+  avg_value: number;
+  sample_count: number;
 };
 
 export type DashboardPayload = {
-  latest: MeasurementRecord | null;
+  latest: LatestMeasurement | null;
   series: MeasurementRecord[];
+  boxPlots: Record<MetricKey, BoxPlotBucket[]>;
   charts: Record<MetricKey, TimeSeriesPoint[]>;
   summary: {
     temperature_c: MetricSummary;
     humidity_percent: MetricSummary;
     pressure_hpa: MetricSummary;
   };
-  recent: MeasurementRecord[];
+  recent: RecentMeasurementRecord[];
+  recordCount: number;
 };

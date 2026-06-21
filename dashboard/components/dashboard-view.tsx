@@ -56,7 +56,7 @@ function MetricCard({
 }
 
 export function DashboardView({ appName, range, payload }: DashboardViewProps) {
-  const { latest, recent, series, summary } = payload;
+  const { latest, recent, recordCount, summary } = payload;
 
   return (
     <main className="dashboard-shell">
@@ -93,7 +93,7 @@ export function DashboardView({ appName, range, payload }: DashboardViewProps) {
               <p className="eyebrow">Range summary</p>
               <h2>{range} at a glance</h2>
             </div>
-            <span className="muted">{series.length} records</span>
+            <span className="muted">{recordCount} records</span>
           </div>
           <div className="summary-grid">
             <div className="summary-item">
@@ -128,7 +128,7 @@ export function DashboardView({ appName, range, payload }: DashboardViewProps) {
           color="#ff7a18"
           range={range}
           metric="temperature_c"
-          records={series}
+          buckets={payload.boxPlots.temperature_c}
           points={payload.charts.temperature_c}
         />
         <MetricChart
@@ -137,7 +137,7 @@ export function DashboardView({ appName, range, payload }: DashboardViewProps) {
           color="#37b8ff"
           range={range}
           metric="humidity_percent"
-          records={series}
+          buckets={payload.boxPlots.humidity_percent}
           points={payload.charts.humidity_percent}
         />
         <MetricChart
@@ -146,7 +146,7 @@ export function DashboardView({ appName, range, payload }: DashboardViewProps) {
           color="#9ce25b"
           range={range}
           metric="pressure_hpa"
-          records={series}
+          buckets={payload.boxPlots.pressure_hpa}
           points={payload.charts.pressure_hpa}
         />
       </section>

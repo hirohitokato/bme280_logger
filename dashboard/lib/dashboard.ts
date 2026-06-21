@@ -1,10 +1,13 @@
 import {
   BoxPlotBucket,
+  DailyMetricBucketRow,
   DashboardPayload,
   DashboardRange,
+  LatestMeasurement,
   MeasurementRecord,
   MetricKey,
   MetricSummary,
+  RecentMeasurementRecord,
   TimeSeriesPoint,
 } from "./types";
 
@@ -85,9 +88,9 @@ export function buildBoxPlotBuckets(
   for (const record of records) {
     const date = new Date(record.measured_at);
     const dayKey = [
-      date.getFullYear().toString().padStart(4, "0"),
-      (date.getMonth() + 1).toString().padStart(2, "0"),
-      date.getDate().toString().padStart(2, "0"),
+      date.getUTCFullYear().toString().padStart(4, "0"),
+      (date.getUTCMonth() + 1).toString().padStart(2, "0"),
+      date.getUTCDate().toString().padStart(2, "0"),
     ].join("-");
     const values = grouped.get(dayKey) ?? [];
     values.push(record[metric]);
@@ -106,18 +109,96 @@ export function buildBoxPlotBuckets(
         q3: percentile(sorted, 0.75) ?? sorted[0],
         max: sorted[sorted.length - 1],
         count: sorted.length,
+        avg: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
       };
     });
 }
 
-export function buildDashboardPayload(
-  latest: MeasurementRecord | null,
-  series: MeasurementRecord[],
-): DashboardPayload {
+export function buildMetricBuckets(
+  rows: DailyMetricBucketRow[],
+): Record<MetricKey, BoxPlotBucket[]> {
+  const initialBuckets: Record<MetricKey, BoxPlotBucket[]> = {
+    temperature_c: [],
+    humidity_percent: [],
+    pressure_hpa: [],
+  };
+
+  for (const row of rows) {
+    initialBuckets[row.metric].push({
+      bucketStart: row.bucket_date,
+      min: row.min_value,
+      q1: row.q1_value,
+      median: row.median_value,
+      q3: row.q3_value,
+      max: row.max_value,
+      count: row.sample_count,
+      avg: row.avg_value,
+    });
+  }
+
+  for (const metric of METRIC_KEYS) {
+    initialBuckets[metric].sort((left, right) => left.bucketStart.localeCompare(right.bucketStart));
+  }
+
+  return initialBuckets;
+}
+
+export function buildSummaryFromBuckets(
+  buckets: Record<MetricKey, BoxPlotBucket[]>,
+): Record<MetricKey, MetricSummary> {
+  return METRIC_KEYS.reduce<Record<MetricKey, MetricSummary>>((accumulator, metric) => {
+    const metricBuckets = buckets[metric];
+    if (metricBuckets.length === 0) {
+      accumulator[metric] = { min: null, max: null, avg: null };
+      return accumulator;
+    }
+
+    let totalCount = 0;
+    let weightedSum = 0;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+
+    for (const bucket of metricBuckets) {
+      totalCount += bucket.count;
+      weightedSum += (bucket.avg ?? bucket.median) * bucket.count;
+      min = Math.min(min, bucket.min);
+      max = Math.max(max, bucket.max);
+    }
+
+    accumulator[metric] = {
+      min,
+      max,
+      avg: totalCount === 0 ? null : weightedSum / totalCount,
+    };
+    return accumulator;
+  }, {
+    temperature_c: { min: null, max: null, avg: null },
+    humidity_percent: { min: null, max: null, avg: null },
+    pressure_hpa: { min: null, max: null, avg: null },
+  });
+}
+
+export function buildDashboardPayload({
+  latest,
+  series,
+  recent,
+  boxPlots,
+  summary,
+  recordCount,
+}: {
+  latest: LatestMeasurement | null;
+  series: MeasurementRecord[];
+  recent: RecentMeasurementRecord[];
+  boxPlots?: Record<MetricKey, BoxPlotBucket[]>;
+  summary?: Record<MetricKey, MetricSummary>;
+  recordCount?: number;
+}): DashboardPayload {
   const chronological = [...series].sort((a, b) => a.measured_at.localeCompare(b.measured_at));
-  const recent = [...series]
-    .sort((a, b) => b.measured_at.localeCompare(a.measured_at))
-    .slice(0, 12);
+  const resolvedBoxPlots = boxPlots ?? {
+    temperature_c: [],
+    humidity_percent: [],
+    pressure_hpa: [],
+  };
 
   const charts = METRIC_KEYS.reduce<Record<MetricKey, TimeSeriesPoint[]>>((accumulator, metric) => {
     accumulator[metric] = buildTimeSeriesPoints(chronological, metric);
@@ -131,13 +212,15 @@ export function buildDashboardPayload(
   return {
     latest,
     series: chronological,
+    boxPlots: resolvedBoxPlots,
     charts,
     recent,
-    summary: {
+    summary: summary ?? {
       temperature_c: computeMetricSummary(chronological.map((item) => item.temperature_c)),
       humidity_percent: computeMetricSummary(chronological.map((item) => item.humidity_percent)),
       pressure_hpa: computeMetricSummary(chronological.map((item) => item.pressure_hpa)),
     },
+    recordCount: recordCount ?? chronological.length,
   };
 }
 

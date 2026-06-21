@@ -223,9 +223,10 @@ NEXT_PUBLIC_APP_NAME=BME280 Dashboard
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_TABLE=measurements
+SUPABASE_DAILY_BUCKETS_RPC=dashboard_daily_metric_buckets
 ```
 
-This repository includes [dashboard/vercel.json](/Users/a3140236/Desktop/bme280_logger/dashboard/vercel.json) so Vercel treats the dashboard as a Next.js app.
+This repository includes [dashboard/vercel.json](./dashboard/vercel.json) so Vercel treats the dashboard as a Next.js app.
 
 ### 4. Run the dashboard locally
 
@@ -244,6 +245,18 @@ cd dashboard
 npm test
 npm run build
 ```
+
+### 5. Add Supabase dashboard aggregation helpers
+
+For efficient `7d` and `30d` dashboard reads, create the RPC function and timestamp index from [supabase/dashboard_daily_metric_buckets.sql](./supabase/dashboard_daily_metric_buckets.sql).
+
+This function:
+
+- groups measurements by UTC day
+- returns `min / q1 / median / q3 / max / avg / count` for each metric
+- lets the dashboard fetch daily box-plot data without downloading every raw row in the selected range
+
+If you manage SQL manually, the important table assumption is that `measured_at` is stored as a UTC ISO 8601 timestamp string and indexed for both range filters and descending recent-record reads.
 
 ## Local Database Schema
 

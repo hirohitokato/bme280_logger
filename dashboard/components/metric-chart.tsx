@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -11,8 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { buildBoxPlotBuckets } from "../lib/dashboard";
-import { DashboardRange, MeasurementRecord, MetricKey, TimeSeriesPoint } from "../lib/types";
+import { BoxPlotBucket, DashboardRange, MetricKey, TimeSeriesPoint } from "../lib/types";
 
 type MetricChartProps = {
   title: string;
@@ -20,7 +19,7 @@ type MetricChartProps = {
   color: string;
   range: DashboardRange;
   metric: MetricKey;
-  records: MeasurementRecord[];
+  buckets: BoxPlotBucket[];
   points: TimeSeriesPoint[];
 };
 
@@ -83,7 +82,7 @@ function MetricTooltip({
   );
 }
 
-function TimeSeriesMetricChart({ points, color, title, unit }: Omit<MetricChartProps, "range" | "metric" | "records">) {
+function TimeSeriesMetricChart({ points, color, title, unit }: Omit<MetricChartProps, "range" | "metric" | "buckets">) {
   if (points.length === 0) {
     return <div className="empty-chart">No measurements in this range.</div>;
   }
@@ -133,12 +132,11 @@ function TimeSeriesMetricChart({ points, color, title, unit }: Omit<MetricChartP
 }
 
 function BoxPlotMetricChart({
-  records,
-  metric,
+  buckets,
   color,
   unit,
-}: Pick<MetricChartProps, "records" | "metric" | "color" | "unit">) {
-  const buckets = useMemo(() => buildBoxPlotBuckets(records, metric), [records, metric]);
+  metric,
+}: Pick<MetricChartProps, "buckets" | "metric" | "color" | "unit">) {
   const [hovered, setHovered] = useState<HoveredBucket | null>(null);
 
   if (buckets.length === 0) {
@@ -251,10 +249,12 @@ export function MetricChart({
   color,
   range,
   metric,
-  records,
+  buckets,
   points,
 }: MetricChartProps) {
-  const values = points.map((point) => point.value);
+  const values = range === "24h"
+    ? points.map((point) => point.value)
+    : buckets.flatMap((bucket) => [bucket.min, bucket.max]);
   const min = values.length > 0 ? Math.min(...values) : null;
   const max = values.length > 0 ? Math.max(...values) : null;
 
@@ -273,7 +273,7 @@ export function MetricChart({
       {range === "24h" ? (
         <TimeSeriesMetricChart color={color} points={points} title={title} unit={unit} />
       ) : (
-        <BoxPlotMetricChart color={color} metric={metric} records={records} unit={unit} />
+        <BoxPlotMetricChart buckets={buckets} color={color} metric={metric} unit={unit} />
       )}
     </section>
   );
